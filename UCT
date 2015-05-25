@@ -1,0 +1,630 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+
+namespace SimpleWars
+{
+    //UCT saerch
+    class AI_UCT : Player
+    {
+
+        // 乱数生成器
+        private Random fRand = new Random();
+
+        // パラメータ
+        public const int NEXT_NODES = 100;
+        public const int MAX_SIM = 1000;
+        //public const int MAX_SIM = 2000;
+        //public const int MAX_SIM = 3000;
+        //public const int SIM_SIKI = 5;
+        public const int SIM_SIKI = 10;
+        //public const int SIM_SIKI = 20;
+        //public const int SIM_SIKI = 40;
+        //public const int SIM_SIKI = 60;
+        public static int lastactionturn = 0;
+        public static double FUZZY_SIKI = 0.5;
+        //public static double ATK_SIKI = 0.5;
+        public static double ATK_SIKI = 0.76;
+        public static double DEF_SIKI = 0.4;
+
+/*        
+        public static double[,] act_val = new double[5, 5] {
+            {0.3333, 1,      0.75,   0.75,   1     },
+            {0.8889, 0.9286, 0.9167, 1,      0.9583},
+            {1,      1,      0.8333, 0.8333, 1     },
+            {1,      1,      1,      1,      0.9   },
+            {0.7142, 1,      0.5,    0.8889, 1     }
+        };
+        */
+        public static double[,] act_val = new double[5, 5] {
+            {0.3333, 0.8,      0.8,   0.8,   1     },
+            {0.8, 0.9286, 0.92,    1,      0.9583},
+            {0.8889,      1,      0.8333, 0.8333, 1     },
+            {1     ,      1,      1,      1,      0.9   },
+            {1     , 1,      0.9167, 0.8889, 1     }
+        };
+
+
+        /*
+        public static double[,] move_val = new double[5, 5] {
+            {0, 0, 0, 0, 1},
+            {0, 0, 0, 1, 1},
+            {0, 0, 1, 1, 1},
+            {0, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1}
+        };
+        */
+        /*
+        public static double[,] move_val = new double[5, 5] {
+            {0, 0.3333, 0.4, 0.3077, 0.5476},
+            {0, 0.6667, 0.5, 0, 0.5769},
+            {0.5, 0, 0.5, 0.375, 0},
+            {0.5, 0, 0, 0, 0.8333},
+            {0, 0, 0.5, 0.4, 0.5}
+        };
+        */
+        
+        public static double[,] move_val = new double[5, 5] {
+            {0  , 0.3333, 0.4   , 0.4   , 0.5476},
+            {0  , 0.6667, 0.6667, 0.6667, 0.5769},
+            {0.5, 0.5   , 0.5   , 0.5   , 0.5476},
+            {0.5, 0.5   , 0.5   , 0.5   , 0.8333},
+            {0.5, 0.6667, 0.5   , 0.5   , 0.5}
+        };
+
+        public static double[,] inf_mov = new double[5, 5] {
+            {0, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1}
+        };
+
+        public static double[,] inf_atk = new double[5, 5] {
+            {0, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1}
+        };
+
+        public static double[,] pan_mov = new double[5, 5] {
+            {0, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1}
+        };
+        public static double[,] pan_atk = new double[5, 5] {
+            {0, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1}
+        };
+        public static double[,] can_mov = new double[5, 5] {
+            {0, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1}
+        };
+        public static double[,] can_atk = new double[5, 5] {
+            {0, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1},
+            {1, 1, 1, 1, 1}
+        };
+
+
+
+
+        //ノードを表す構造体
+        public struct node
+        {
+            public Map board;
+            public int depth;
+            public int simnum;
+            public double lastscore;
+            public double totalscore;
+            public double housyuu;
+            public Action act;
+            public List<Action> kouho;
+            public List<node> next;
+            public double fuzzy_num;
+        }
+
+
+        // AIの表示名を返す（必須）
+        // 改行文字 \r, \n，半角大カッコ [, ]，システム文字は使わないでください．
+        public string getName()
+        {
+            return "UCT";
+        }
+
+        // パラメータ等の情報を返す（必須だが，空でも良い）
+        // 改行は含んでも構いません．半角大カッコ [, ], システム文字は使わないでください．
+        public string showParameters()
+        {
+            return "";
+
+            // 例えば PARAM1, PARAM2 というパラメータがあって，棋譜等に残したい場合
+            // return "PARAM1 = " + PARAM1 + "\r\n" + "PARAM2 = " + PARAM2;
+        }
+
+        // 1ユニットの行動を決定する（必須）
+        // なお，ここでもらった map オブジェクトはコピーされたものなので，どのように利用・変更しても問題ありません．
+        public Action makeAction(Map map, int teamColor)
+        {
+
+            //int enemyColor;
+            //if (teamColor == 1)
+                //enemyColor = 0;
+            //else
+                //enemyColor = 1;
+
+
+            List<Action> allActions = new List<Action>();
+            List<Unit> allUnits = map.getUnitsList(teamColor, false, true, false);  // 未行動自ユニット
+
+            foreach(Unit u in allUnits)
+            {   
+                List<Action>the_acts = AiTools.getUnitActions(u,map);//選択したユニットの全行動
+                allActions.AddRange(the_acts);
+            }
+
+            node root = node_init();
+            root.board = map.createDeepClone();
+            root.kouho = allActions;
+            allActions.ElementAt(0);
+
+            foreach (Action act in allActions)
+            {
+                //if (evaluateFuzzyValue(map, act, teamColor) >= FUZZY_SIKI)
+                if ((act.actionType == 2 && evaluateFuzzyValue(map, act, teamColor) >= ATK_SIKI) || (act.actionType == 1 && evaluateFuzzyValue(map, act, teamColor) >= DEF_SIKI))
+                {
+
+                    node child = node_init();
+                    child.board = map.createDeepClone();
+                    child.act = act;
+                    child.depth = 1;
+
+                    //child.fuzzy_num = evaluateFuzzyValue(map, act, teamColor);
+
+                    child.board.executeAction(act);
+                    root.next.Add(child);
+
+                }
+
+            }
+
+
+
+            //ここで最初の枝狩り？
+
+
+            AI_Tree.set_tree(root);
+
+            int zentaisim = 0;
+
+            for (int i = 0; i < MAX_SIM; i++)
+            {
+                //Logger.addLogMessage("シミュレーションNo " + i + " スタート\r\n");
+
+                root = AI_Tree.get_tree();
+
+                AI_Tree.search_node(root, zentaisim, teamColor);
+
+                zentaisim++;
+            }
+            
+            //Logger.addLogMessage("kouhosyu: " + root.kouho.Count + "\r\n");
+            //Logger.addLogMessage("next node: " + root.next.Count + "\r\n");
+            //Logger.addLogMessage("tree depth: " + AI_Tree.get_max_depth() + " max: " + map.getUnitsList(teamColor,false,true,true).Count + "\r\n");
+            
+            double maxhousyuu = 0;
+            int rtnID = 0;
+            for (int i = 0; i < root.next.Count; i++)
+            {
+                node rtnnode = root.next[i];                
+                double tmphousyuu = root.next[i].housyuu;
+                if (tmphousyuu > maxhousyuu)                
+                {                
+                    maxhousyuu = tmphousyuu;                    
+                    rtnID = i;
+                }
+            }
+
+            //evaluateFuzzyValue(map, root.next[rtnID].act, teamColor);
+
+            /*
+            if(root.next.Count == 0)
+            {
+                List<Unit> notUnit = map.getUnitsList(teamColor, false, true, false);  // 未行動自ユニット
+                Unit non = notUnit[0];
+                return Action.createMoveOnlyAction(non, non.getXpos(), non.getYpos());
+
+            }
+            */
+
+            return root.next[rtnID].act;
+        }
+        
+
+
+
+
+
+        //node 初期化
+        public static node node_init()
+        {
+            node n = new node();
+            n.board = new Map();
+            n.depth = 0;
+            n.simnum = 0;
+            n.lastscore = 0;
+            n.totalscore = 0;
+            n.housyuu = 0;
+            n.act = new Action();
+            n.kouho = new List<Action>();
+            n.next = new List<node>();
+            n.fuzzy_num = 0;
+            return n;
+        }
+
+
+ 
+
+        //UCB値計算
+        public static double evaluateUCT(node n, int totalsim)
+        {
+            if (n.simnum == 0)
+                return 100 + n.fuzzy_num;
+            else
+                return n.housyuu + 0.15 * Math.Sqrt(Math.Log(totalsim, Math.E) / n.simnum);
+
+        }
+
+
+        //ノードの評価値をファジィに求める行動評価関数
+        public static double evaluateFuzzyValue(Map map, Action act, int teamcolor)
+        {
+            // 判断にgoodとbadのほかにnormalもくみこんでみる？
+            //移動と攻撃で別々のファジィ配列をつくる？
+            //現状、移動は５種類でしか分類されていない
+            //地形効果も考慮したほうが良いかも？
+            //ユニット価値を追加したほうがいいかも
+
+
+
+
+            double value = 0;
+
+            double beat_down = 0;
+            /*
+            int enemycolor;
+            if(teamcolor==1)
+                enemycolor = 0;
+            else
+                enemycolor = 1;
+            */
+
+            int attack_val;
+            int defence_val;
+
+            Map clonemap = map.createDeepClone();
+
+            //attack value
+            if (act.actionType == 2)
+            {
+
+                attack_val = 0;
+
+                int[] attackDamages = DamageCalculator.calculateDamages(map, act); // 攻撃，反撃ダメージを計算
+                if (attackDamages[0] - attackDamages[1] <= 0)
+                    attack_val = 0;
+                else if (attackDamages[0] - attackDamages[1] > 0 && attackDamages[0] - attackDamages[1] <= 1)
+                    attack_val = 1;
+                else if (attackDamages[0] - attackDamages[1] > 1 && attackDamages[0] - attackDamages[1] <= 2)
+                    attack_val = 2;
+                else if (attackDamages[0] - attackDamages[1] > 2 && attackDamages[0] - attackDamages[1] <= 3)
+                    attack_val = 3;
+                else
+                    attack_val = 4;
+
+
+
+                //defence value
+                defence_val = 4;
+                clonemap.executeAction(act);
+
+                if (clonemap.getUnit(act.operationUnitId) == null)
+                    defence_val = 0;
+
+                List<Unit> enemys = clonemap.getUnitsList(teamcolor, false, false, true);
+                List<Action> enemyattacks = new List<Action>();
+
+                foreach (Unit u in enemys)
+                {
+                    List<Action> attacks = RangeController.getAttackActionList(u, clonemap);
+                    enemyattacks.AddRange(attacks);
+
+                }
+
+                int damages_sum = 0;
+
+                foreach (Action a in enemyattacks)
+                {
+                    if (a.targetUnitId == act.operationUnitId)
+                    {
+                        int tmp_def_val;
+
+                        int[] fromEntoDamages = DamageCalculator.calculateDamages(clonemap, a);//[0] is attack [1] is react damege
+
+                        if (fromEntoDamages[0] - fromEntoDamages[1] > 3)
+                            tmp_def_val = 0;
+                        else if (fromEntoDamages[0] - fromEntoDamages[1] <= 3 && fromEntoDamages[0] - fromEntoDamages[1] > 2)
+                            tmp_def_val = 1;
+                        else if (fromEntoDamages[0] - fromEntoDamages[1] <= 2 && fromEntoDamages[0] - fromEntoDamages[1] > 1)
+                            tmp_def_val = 2;
+                        else if (fromEntoDamages[0] - fromEntoDamages[1] <= 1 && fromEntoDamages[0] - fromEntoDamages[1] > 0)
+                            tmp_def_val = 3;
+                        else
+                            tmp_def_val = 4;
+
+                        if (tmp_def_val < defence_val)
+                            defence_val = tmp_def_val;
+
+
+                        damages_sum += fromEntoDamages[0];
+                    }
+
+                }
+
+                if (damages_sum >= map.getUnits()[act.operationUnitId].getHP())
+                    beat_down = 1;
+
+
+            }
+   
+            else
+            {
+                attack_val = 0;
+
+                clonemap.executeAction(act);
+
+                List<Action> myattacks = RangeController.getAttackActionList(clonemap.getUnit(act.operationUnitId), clonemap);
+
+                //Logger.addLogMessage("next attack actions:" + myattacks.Count + "\r\n");
+
+                foreach (Action a in myattacks)
+                {
+                    int tmp_atk_val;
+
+
+                    int[] attackDamages = DamageCalculator.calculateDamages(clonemap, a); // 次のターンにできる攻撃，反撃ダメージを計算
+                    if (attackDamages[0] - attackDamages[1] <= 0)
+                        tmp_atk_val = 0;
+                    else if (attackDamages[0] - attackDamages[1] > 0 && attackDamages[0] - attackDamages[1] <= 1)
+                        tmp_atk_val = 1;
+                    else if (attackDamages[0] - attackDamages[1] > 1 && attackDamages[0] - attackDamages[1] <= 2)
+                        tmp_atk_val = 2;
+                    else if (attackDamages[0] - attackDamages[1] > 2 && attackDamages[0] - attackDamages[1] <= 3)
+                        tmp_atk_val = 3;
+                    else
+                        tmp_atk_val = 4;
+
+
+                    if (tmp_atk_val > attack_val)
+                        attack_val = tmp_atk_val;
+                }
+
+
+                defence_val = 4;
+
+                List<Unit> enemys = clonemap.getUnitsList(teamcolor, false, false, true);
+                List<Action> enemyattacks = new List<Action>();
+
+                foreach (Unit u in enemys)
+                {
+                    List<Action> attacks = RangeController.getAttackActionList(u, clonemap);
+                    enemyattacks.AddRange(attacks);
+
+                }
+
+                int damages_sum = 0;
+
+                foreach (Action a in enemyattacks)
+                {
+                    if (a.targetUnitId == act.operationUnitId)
+                    {
+                        int tmp_def_val;
+
+                        int[] fromEntoDamages = DamageCalculator.calculateDamages(clonemap, a);//[0] is attack [1] is react damege
+
+                        if (fromEntoDamages[0] - fromEntoDamages[1] > 3)
+                            tmp_def_val = 0;
+                        else if (fromEntoDamages[0] - fromEntoDamages[1] <= 3 && fromEntoDamages[0] - fromEntoDamages[1] > 2)
+                            tmp_def_val = 1;
+                        else if (fromEntoDamages[0] - fromEntoDamages[1] <= 2 && fromEntoDamages[0] - fromEntoDamages[1] > 1)
+                            tmp_def_val = 2;
+                        else if (fromEntoDamages[0] - fromEntoDamages[1] <= 1 && fromEntoDamages[0] - fromEntoDamages[1] > 0)
+                            tmp_def_val = 3;
+                        else
+                            tmp_def_val = 4;
+
+                        if (tmp_def_val < defence_val)
+                            defence_val = tmp_def_val;
+
+
+                        damages_sum += fromEntoDamages[0];
+                    }
+
+                }
+
+                if (damages_sum >= map.getUnits()[act.operationUnitId].getHP())
+                    beat_down = 1;
+
+            }
+
+
+
+
+            
+            if (act.destinationXpos == act.fromXpos && act.destinationYpos == act.fromYpos && act.actionType == 1)
+            {
+                //value = fuzzy_val[4, 4];
+                value = 1.0;
+                return value;
+            }
+
+            if(beat_down == 1)
+                return 0;
+            
+
+            //value = fuzzy_val[attack_val, defence_val];
+
+
+            if (act.actionType == 2)
+            {
+                
+                //Logger.addLogMessage("type: " + map.getUnits()[act.operationUnitId].getTypeOfUnit() + " opunit: " + act.operationUnitId + " atak (" + act.fromXpos + "," + act.fromYpos + ") to (" + act.destinationXpos + "," + act.destinationYpos + ") value:[" + attack_val + "," + defence_val + "] = 1\r\n");
+                //value = act_val[attack_val, defence_val];
+
+                if (map.getUnits()[act.operationUnitId].getTypeOfUnit() == 2)
+                    value = pan_atk[attack_val, defence_val];
+                else
+                    value = act_val[attack_val, defence_val];
+
+            }
+            else
+            {
+                //Logger.addLogMessage("type: " + map.getUnits()[act.operationUnitId].getTypeOfUnit() + " opunit: " + act.operationUnitId + " move (" + act.fromXpos + "," + act.fromYpos + ") to (" + act.destinationXpos + "," + act.destinationYpos + ") value:[" + attack_val + "," + defence_val + "] = 1\r\n");
+                value = move_val[attack_val, defence_val];
+            }
+
+
+            return value;
+        }
+
+
+
+        private double Form1_KeyDown(object sender, System.Windows.Forms.KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.G) { return 1;}
+            else if (e.KeyCode == Keys.B) { return 0; }
+            else { return 0.5; }
+        }
+
+
+
+        //状態評価関数
+        public static double evaluateStateValue(Map map, int teamcolor)
+        {
+            int enemycolor;
+            double mytotalHP = 0;
+            double enemytotalHP = 0;
+            //double bonus;
+
+            if (teamcolor == 1)
+                enemycolor = 0;
+            else
+                enemycolor = 1;
+
+
+            List<Unit> myTeamUnits = map.getUnitsList(teamcolor, true, true, false);//自分チームの全てのユニット
+            List<Unit> enemyTeamUnits = map.getUnitsList(enemycolor, true, true, false);//相手チームの全てのユニット
+
+            for (int i = 0; i < myTeamUnits.Count; i++)
+            {
+                mytotalHP += myTeamUnits[i].getHP();
+            }
+
+            for (int i = 0; i < enemyTeamUnits.Count; i++)
+            {
+                enemytotalHP += enemyTeamUnits[i].getHP();
+            }
+            /*
+            if (mytotalHP == 0 || enemytotalHP == 0)
+                bonus = 2;
+            else
+                bonus = 1;
+            */
+            if (mytotalHP - enemytotalHP >= map.getDrawHPThreshold())
+            {
+                return 1;
+            }
+            else if (Math.Abs(mytotalHP - enemytotalHP) < map.getDrawHPThreshold())
+            {
+                return 0.5;
+            }
+            else
+            {
+                return 0;
+            }
+
+        }
+
+        /*
+
+
+        //状態評価関数（モンテカルロ版）
+        public static double evaluateStateValue_monte(Map map, int teamcolor)
+        {
+            int enemycolor;
+            double mytotalHP = 0;
+            double enemytotalHP = 0;
+            double bonus;
+
+            if (teamcolor == 1)
+                enemycolor = 0;
+            else
+                enemycolor = 1;
+
+
+            List<Unit> myTeamUnits = map.getUnitsList(teamcolor, true, true, false);//自分チームの全てのユニット
+            List<Unit> enemyTeamUnits = map.getUnitsList(enemycolor, true, true, false);//相手チームの全てのユニット
+
+            for (int i = 0; i < myTeamUnits.Count; i++)
+            {
+                if (myTeamUnits[i].getTypeOfUnit() == 5)
+                {
+                    mytotalHP += myTeamUnits[i].getHP() * 0.2;
+                }
+                else
+                {
+                    mytotalHP += myTeamUnits[i].getHP();
+                }
+
+            }
+
+            for (int i = 0; i < enemyTeamUnits.Count; i++)
+            {
+                if (enemyTeamUnits[i].getTypeOfUnit() == 5)
+                {
+                    enemytotalHP += enemyTeamUnits[i].getHP() * 0.2;
+                }
+                else
+                {
+                    enemytotalHP += enemyTeamUnits[i].getHP();
+                }
+            }
+
+            if (mytotalHP == 0 || enemytotalHP == 0)
+                bonus = 2;
+            else
+                bonus = 1;
+
+
+            return (mytotalHP - enemytotalHP) * bonus;
+        }
+
+        */
+
+
+    }
+
+}
