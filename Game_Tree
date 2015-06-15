@@ -1,0 +1,34 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+namespace SimpleWars
+{
+    class Game_Tree
+    {
+        public Map board;
+        public int depth;
+        public int simnum;
+        public double lastscore;
+        public double totalscore;
+        public double housyuu;
+        public Action act;
+        public List<Action> kouho;
+        public List<Game_Tree> next;
+
+        public Game_Tree()
+        {
+            board = new Map();
+            depth = 0;
+            simnum = 0;
+            lastscore = 0;
+            totalscore = 0;
+            housyuu = 0;
+            act = new Action();
+            kouho = new List<Action>();
+            next = new List<Game_Tree>();
+        }
+
+    }
+}
